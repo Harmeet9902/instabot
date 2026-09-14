@@ -3,7 +3,7 @@ import re
 import urllib.parse
 import threading
 import requests
-from flask import Flask
+from flask import Flask, request, jsonify, render_template_string
 import telebot
 
 BOT_TOKEN = "8872648718:AAGbgUSgZ07twAle3lzP71krsz9iEfwNn2w"
@@ -13,22 +13,97 @@ RAPIDAPI_HOST = "instagram-reels-downloader-api.p.rapidapi.com"
 bot = telebot.TeleBot(BOT_TOKEN)
 app = Flask(__name__)
 
+# ਸਾਡੀ ਆਪਣੀ Clean, Modern, 100% Ad-Free Mini App ਦਾ HTML/UI
+HTML_PAGE = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Insta Downloader</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        body { background: #0f172a; color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; }
+        .card { background: #1e293b; border-radius: 20px; padding: 28px 24px; width: 100%; max-width: 420px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); text-align: center; border: 1px solid #334155; }
+        h1 { font-size: 22px; font-weight: 700; margin-bottom: 8px; background: linear-gradient(135deg, #f43f5e, #fb7185); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        p { font-size: 13px; color: #94a3b8; margin-bottom: 24px; }
+        .input-group { display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px; }
+        input { width: 100%; padding: 14px 16px; border-radius: 12px; border: 1px solid #475569; background: #0f172a; color: #fff; font-size: 15px; outline: none; transition: 0.3s; }
+        input:focus { border-color: #f43f5e; }
+        button.btn { width: 100%; padding: 14px; border-radius: 12px; border: none; font-size: 15px; font-weight: 600; cursor: pointer; transition: 0.2s; background: linear-gradient(135deg, #e11d48, #f43f5e); color: #fff; }
+        button.btn:active { transform: scale(0.98); }
+        #status { font-size: 13px; color: #38bdf8; margin-top: 15px; display: none; }
+        #result-box { margin-top: 20px; display: none; }
+        .dl-btn { display: block; width: 100%; padding: 14px; background: #10b981; color: white; text-decoration: none; border-radius: 12px; font-weight: 600; font-size: 15px; margin-top: 10px; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>Instagram Saver</h1>
+        <p>Original 4K/HD • Zero Ads • No Watermark</p>
+        
+        <div class="input-group">
+            <input type="text" id="urlInput" placeholder="Paste Instagram Link Here..." />
+            <button class="btn" onclick="startDownload()">Download Now</button>
+        </div>
+
+        <div id="status">⚡ Fetching Original High Quality...</div>
+        <div id="result-box">
+            <a id="downloadLink" href="#" target="_blank" class="dl-btn">⬇️ Save Video / Photo</a>
+        </div>
+    </div>
+
+    <script>
+        window.Telegram.WebApp.ready();
+        window.Telegram.WebApp.expand();
+
+        async function startDownload() {
+            const url = document.getElementById('urlInput').value.trim();
+            const status = document.getElementById('status');
+            const resultBox = document.getElementById('result-box');
+            const downloadLink = document.getElementById('downloadLink');
+
+            if (!url.includes("instagram.com")) {
+                alert("Please paste a valid Instagram link!");
+                return;
+            }
+
+            status.style.display = 'block';
+            status.innerText = "⚡ Connecting to media server...";
+            resultBox.style.display = 'none';
+
+            try {
+                const res = await fetch(`/api/get-video?url=${encodeURIComponent(url)}`);
+                const data = await res.json();
+
+                if (data.success && data.media_url) {
+                    status.style.display = 'none';
+                    downloadLink.href = data.media_url;
+                    resultBox.style.display = 'block';
+                } else {
+                    status.innerText = "❌ Download failed. Please verify the link.";
+                }
+            } catch (err) {
+                status.innerText = "❌ Network error. Please try again.";
+            }
+        }
+    </script>
+</body>
+</html>
+"""
+
 @app.route('/')
 def home():
-    return "Ultra-Fast Downloader Online 24/7"
+    return render_template_string(HTML_PAGE)
 
-def clean_instagram_link(raw_url: str) -> str:
-    # ਲਿੰਕ ਵਿੱਚੋਂ ਸਿਰਫ਼ ਅਸਲ ਸ਼ਾਰਟਕੋਡ ਕੱਢ ਕੇ ਸਾਫ਼ ਲਿੰਕ ਤਿਆਰ ਕਰਨਾ
+@app.route('/api/get-video')
+def get_video_api():
+    raw_url = request.args.get('url', '')
     match = re.search(r'/(?:reel|p|tv)/([A-Za-z0-9_-]+)', raw_url)
-    if match:
-        return f"https://www.instagram.com/reel/{match.group(1)}/"
-    return raw_url.split('?')[0].strip()
+    clean_url = f"https://www.instagram.com/reel/{match.group(1)}/" if match else raw_url.split('?')[0]
 
-def extract_media(raw_url: str):
-    clean_url = clean_instagram_link(raw_url)
-    encoded_url = urllib.parse.quote(clean_url, safe='')
-    endpoint = f"https://{RAPIDAPI_HOST}/download?url={encoded_url}"
-
+    endpoint = f"https://{RAPIDAPI_HOST}/download?url={urllib.parse.quote(clean_url, safe='')}"
     headers = {
         "x-rapidapi-key": RAPIDAPI_KEY,
         "x-rapidapi-host": RAPIDAPI_HOST,
@@ -36,112 +111,18 @@ def extract_media(raw_url: str):
     }
 
     try:
-        response = requests.get(endpoint, headers=headers, timeout=25)
-        if response.status_code == 200:
-            data = response.json()
+        r = requests.get(endpoint, headers=headers, timeout=20)
+        if r.status_code == 200:
+            data = r.json()
+            video_url = data.get("download_url") or data.get("video_url") or (data.get("data", {}).get("download_url") if isinstance(data.get("data"), dict) else None)
+            if not video_url and isinstance(data.get("data"), list) and len(data["data"]) > 0:
+                video_url = data["data"][0].get("url") or data["data"][0].get("download_url")
+            if video_url:
+                return jsonify({"success": True, "media_url": video_url})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
 
-            # ਲਿਸਟ ਫਾਰਮੈਟ ਚੈੱਕ ਕਰਨਾ
-            if isinstance(data, list) and len(data) > 0:
-                item = data[0]
-                url = item.get("download_url") or item.get("url") or item.get("video_url")
-                if url:
-                    return url, "video"
-
-            # ਡਿਕਸ਼ਨਰੀ ਫਾਰਮੈਟ ਚੈੱਕ ਕਰਨਾ
-            if isinstance(data, dict):
-                # ਸਿੱਧੇ ਲਿੰਕ
-                direct_url = data.get("download_url") or data.get("video_url") or data.get("url")
-                if direct_url:
-                    return direct_url, "video"
-
-                # data ਆਬਜੈਕਟ ਦੇ ਅੰਦਰ
-                sub_data = data.get("data")
-                if isinstance(sub_data, dict):
-                    url = sub_data.get("download_url") or sub_data.get("video_url") or sub_data.get("url")
-                    if url:
-                        return url, "video"
-                elif isinstance(sub_data, list) and len(sub_data) > 0:
-                    first = sub_data[0]
-                    url = first.get("download_url") or first.get("url") or first.get("video_url")
-                    if url:
-                        return url, "video"
-
-                # ਫੋਟੋ ਫਾਲਬੈਕ
-                photo_url = data.get("image_url") or (data.get("data", {}).get("image_url") if isinstance(data.get("data"), dict) else None)
-                if photo_url:
-                    return photo_url, "photo"
-
-    except Exception:
-        pass
-
-    return None, None
-
-@bot.message_handler(commands=['start'])
-def send_welcome(message):
-    welcome_text = (
-        "👋 **Welcome!**\n\n"
-        "Send or paste any **Instagram Reel, Video, or Photo** link here.\n\n"
-        "⚡ Original Maximum Quality (No Watermark, No Ads)."
-    )
-    bot.reply_to(message, welcome_text, parse_mode="Markdown")
-
-@bot.message_handler(func=lambda msg: True)
-def handle_download(message):
-    text = message.text or ""
-    if "instagram.com" not in text:
-        bot.reply_to(message, "⚠️ **Invalid Link!** Please send a valid Instagram link.", parse_mode="Markdown")
-        return
-
-    status = bot.reply_to(message, "⚡ **Processing your link...**\nFetching original high-quality media, please wait.", parse_mode="Markdown")
-    bot.send_chat_action(message.chat.id, 'upload_video')
-
-    try:
-        media_url, media_type = extract_media(text.strip())
-
-        if not media_url:
-            bot.edit_message_text(
-                "❌ **Download Failed.**\nThe reel might be private or restricted by Instagram.",
-                chat_id=message.chat.id,
-                message_id=status.message_id,
-                parse_mode="Markdown"
-            )
-            return
-
-        bot.edit_message_text("📤 **Uploading to Telegram...**", chat_id=message.chat.id, message_id=status.message_id, parse_mode="Markdown")
-
-        temp_filename = f"media_{message.message_id}.mp4" if media_type == "video" else f"media_{message.message_id}.jpg"
-
-        with requests.get(media_url, stream=True, timeout=60) as r:
-            r.raise_for_status()
-            with open(temp_filename, 'wb') as f:
-                for chunk in r.iter_content(chunk_size=1024*1024):
-                    if chunk:
-                        f.write(chunk)
-
-        with open(temp_filename, 'rb') as f:
-            if media_type == "video":
-                bot.send_video(
-                    message.chat.id,
-                    f,
-                    supports_streaming=True,
-                    caption="🎬 **Original High Quality (No Watermark)**",
-                    parse_mode="Markdown"
-                )
-            else:
-                bot.send_photo(
-                    message.chat.id,
-                    f,
-                    caption="🖼️ **Original Quality Photo**",
-                    parse_mode="Markdown"
-                )
-
-        if os.path.exists(temp_filename):
-            os.remove(temp_filename)
-
-        bot.delete_message(chat_id=message.chat.id, message_id=status.message_id)
-
-    except Exception:
-        bot.edit_message_text("❌ **An error occurred during download.** Please try again.", chat_id=message.chat.id, message_id=status.message_id)
+    return jsonify({"success": False, "error": "Media not found"})
 
 def run_bot():
     bot.infinity_polling(timeout=10, long_polling_timeout=5)
