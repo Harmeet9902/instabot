@@ -1,6 +1,7 @@
 import os
-import requests
+import re
 import threading
+import requests
 from flask import Flask
 import telebot
 
@@ -11,53 +12,44 @@ app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "Bot Server Active 24/7"
+    return "R-Download Moody Engine Live!"
 
-def fetch_direct_media(raw_url: str):
+def fetch_moody_media(url: str):
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-        "Accept": "application/json, text/plain, */*",
+        "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148",
+        "Accept": "*/*",
+        "Referer": "https://www.moody0100.com/"
     }
 
-    # Engine 1: ਸਿੱਧਾ ਪੂਰਾ ਲਿੰਕ ਭੇਜਣ ਵਾਲਾ ਓਪਨ ਸਰਵਰ
+    # Moody0100 R-Download Core API
     try:
-        api_url = f"https://api.siputzx.my.id/api/d/ig?url={raw_url}"
-        res = requests.get(api_url, headers=headers, timeout=12)
+        api_endpoint = "https://www.moody0100.com/api/v1/download"
+        res = requests.post(api_endpoint, json={"url": url}, headers=headers, timeout=15)
         if res.status_code == 200:
             data = res.json()
-            if data.get("status") and data.get("data"):
-                media_list = data["data"]
-                if isinstance(media_list, list) and len(media_list) > 0:
-                    first_item = media_list[0]
-                    download_url = first_item.get("url")
-                    m_type = "video" if "mp4" in download_url.lower() or "video" in str(first_item) else "photo"
-                    return download_url, m_type
+            media_url = data.get("url") or data.get("download_url") or data.get("media")
+            if media_url:
+                return media_url, "video" if "mp4" in media_url.lower() else "photo"
     except Exception:
         pass
 
-    # Engine 2: ਫਾਲਬੈਕ ਵੈੱਬ ਸਰਵਰ
+    # Moody0100 Direct Endpoint Fallback
     try:
-        api_url = f"https://widipe.com/download/igdl?url={raw_url}"
-        res = requests.get(api_url, headers=headers, timeout=12)
+        direct_url = f"https://www.moody0100.com/file/fetch?url={url}"
+        res = requests.get(direct_url, headers=headers, timeout=15)
         if res.status_code == 200:
             data = res.json()
-            if data.get("status") and data.get("result"):
-                results = data["result"]
-                if isinstance(results, list) and len(results) > 0:
-                    d_url = results[0].get("url")
-                    return d_url, "video"
+            if isinstance(data, dict) and data.get("url"):
+                return data["url"], "video"
     except Exception:
         pass
 
-    # Engine 3: ਯੂਨੀਵਰਸਲ ਡਾਊਨਲੋਡਰ ਗੇਟਵੇ
+    # Ddownr / Snap High-Speed Direct Engine
     try:
-        api_url = f"https://api.vkrdownloader.com/server?vkr={raw_url}"
-        res = requests.get(api_url, headers=headers, timeout=12)
-        if res.status_code == 200:
-            data = res.json()
-            d_url = data.get("data", {}).get("download_url") or data.get("download_url")
-            if d_url:
-                return d_url, "video"
+        res = requests.get(f"https://api.vkrdownloader.com/server?vkr={url}", timeout=15).json()
+        d_url = res.get("data", {}).get("download_url") or res.get("download_url")
+        if d_url:
+            return d_url, "video"
     except Exception:
         pass
 
@@ -68,8 +60,8 @@ def send_welcome(message):
     bot.reply_to(
         message,
         "👋 **Welcome!**\n\n"
-        "Instagram ਤੋਂ ਕੋਈ ਵੀ ਲਿੰਕ ਸਿੱਧਾ ਕਾਪੀ ਕਰਕੇ ਇੱਥੇ ਪੇਸਟ ਕਰੋ।\n"
-        "⚡ ਓਰੀਜਨਲ ਫੁੱਲ ਕੁਆਲਿਟੀ ਵਿੱਚ ਮੀਡੀਆ ਤੁਰੰਤ ਡਾਊਨਲੋਡ ਹੋ ਜਾਵੇਗਾ।",
+        "Instagram ਤੋਂ ਕੋਈ ਵੀ ਲਿੰਕ (Reel ਜਾਂ Photo) ਸਿੱਧਾ ਇੱਥੇ ਭੇਜੋ।\n"
+        "⚡ **Original Maximum Quality** (Powered by R⤓Download Engine).",
         parse_mode="Markdown"
     )
 
@@ -81,26 +73,26 @@ def handle_download(message):
         bot.reply_to(message, "⚠️ ਕਿਰਪਾ ਕਰਕੇ ਇੰਸਟਾਗ੍ਰਾਮ ਦਾ ਲਿੰਕ ਭੇਜੋ।")
         return
 
-    status = bot.reply_to(message, "⚡ **Processing... ਮੀਡੀਆ ਫੈਚ ਹੋ ਰਿਹਾ ਹੈ**", parse_mode="Markdown")
+    status = bot.reply_to(message, "⚡ **Processing with R-Download Engine...**\nOriginal 4K/HD ਕੁਆਲਿਟੀ ਫੈਚ ਹੋ ਰਹੀ ਹੈ...", parse_mode="Markdown")
     bot.send_chat_action(message.chat.id, 'upload_video')
 
     try:
-        download_url, media_type = fetch_direct_media(raw_url)
+        download_url, media_type = fetch_moody_media(raw_url)
 
         if not download_url:
             bot.edit_message_text(
-                "❌ ਵੀਡੀਓ ਲੱਭੀ ਨਹੀਂ। ਲਿੰਕ ਚੈੱਕ ਕਰੋ ਜੀ।",
+                "❌ ਵੀਡੀਓ ਲੱਭੀ ਨਹੀਂ ਜਾਂ ਲਿੰਕ ਪ੍ਰਾਈਵੇਟ ਹੈ।",
                 chat_id=message.chat.id,
                 message_id=status.message_id
             )
             return
 
-        bot.edit_message_text("📤 **ਫਾਈਲ ਭੇਜੀ ਜਾ ਰਹੀ ਹੈ...**", chat_id=message.chat.id, message_id=status.message_id)
+        bot.edit_message_text("📤 **ਫਾਈਲ ਅੱਪਲੋਡ ਹੋ ਰਹੀ ਹੈ...**", chat_id=message.chat.id, message_id=status.message_id)
 
         temp_filename = f"media_{message.message_id}.mp4" if media_type == "video" else f"media_{message.message_id}.jpg"
-        
-        # ਵੀਡੀਓ ਸਟ੍ਰੀਮ ਡਾਊਨਲੋਡ
-        with requests.get(download_url, stream=True, timeout=40) as r:
+
+        req_headers = {"User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)"}
+        with requests.get(download_url, headers=req_headers, stream=True, timeout=45) as r:
             r.raise_for_status()
             with open(temp_filename, 'wb') as f:
                 for chunk in r.iter_content(chunk_size=1024*1024):
@@ -113,7 +105,7 @@ def handle_download(message):
                     message.chat.id,
                     media_file,
                     supports_streaming=True,
-                    caption="🎬 **Original Full Quality (No Watermark)**",
+                    caption="🎬 **Here is your video in Original Full Quality!**",
                     parse_mode="Markdown"
                 )
             else:
@@ -130,7 +122,7 @@ def handle_download(message):
         bot.delete_message(chat_id=message.chat.id, message_id=status.message_id)
 
     except Exception:
-        bot.edit_message_text("❌ ਕੋਈ ਦਿੱਕਤ ਆਈ ਹੈ, ਦੁਬਾਰਾ ਕੋਸ਼ਿਸ਼ ਕਰੋ।", chat_id=message.chat.id, message_id=status.message_id)
+        bot.edit_message_text("❌ ਕੋਈ ਸਮੱਸਿਆ ਆਈ ਹੈ, ਕਿਰਪਾ ਕਰਕੇ ਦੁਬਾਰਾ ਕੋਸ਼ਿਸ਼ ਕਰੋ।", chat_id=message.chat.id, message_id=status.message_id)
 
 def run_bot():
     bot.infinity_polling(timeout=10, long_polling_timeout=5)
