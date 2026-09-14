@@ -17,8 +17,16 @@ app = Flask(__name__)
 def home():
     return "Ultra-Fast Downloader Online 24/7"
 
-def extract_media(url: str):
-    encoded_url = urllib.parse.quote(url, safe='')
+def clean_instagram_link(raw_url: str) -> str:
+    # ਲਿੰਕ ਵਿੱਚੋਂ ਸਿਰਫ਼ ਅਸਲ ਸ਼ਾਰਟਕੋਡ ਕੱਢ ਕੇ ਸਾਫ਼ ਲਿੰਕ ਤਿਆਰ ਕਰਨਾ
+    match = re.search(r'/(?:reel|p|tv)/([A-Za-z0-9_-]+)', raw_url)
+    if match:
+        return f"https://www.instagram.com/reel/{match.group(1)}/"
+    return raw_url.split('?')[0].strip()
+
+def extract_media(raw_url: str):
+    clean_url = clean_instagram_link(raw_url)
+    encoded_url = urllib.parse.quote(clean_url, safe='')
     endpoint = f"https://{RAPIDAPI_HOST}/download?url={encoded_url}"
 
     headers = {
@@ -28,31 +36,40 @@ def extract_media(url: str):
     }
 
     try:
-        response = requests.get(endpoint, headers=headers, timeout=20)
+        response = requests.get(endpoint, headers=headers, timeout=25)
         if response.status_code == 200:
             data = response.json()
 
-            # Video Link Parsing
-            video_url = (
-                data.get("download_url") or
-                data.get("video_url") or
-                data.get("data", {}).get("download_url") or
-                data.get("data", {}).get("video_url")
-            )
-            if video_url:
-                return video_url, "video"
+            # ਲਿਸਟ ਫਾਰਮੈਟ ਚੈੱਕ ਕਰਨਾ
+            if isinstance(data, list) and len(data) > 0:
+                item = data[0]
+                url = item.get("download_url") or item.get("url") or item.get("video_url")
+                if url:
+                    return url, "video"
 
-            # Direct results array parsing
-            if "data" in data and isinstance(data["data"], list) and len(data["data"]) > 0:
-                first = data["data"][0]
-                media_link = first.get("url") or first.get("download_url")
-                media_type = "video" if first.get("type") == "video" or "mp4" in str(media_link).lower() else "photo"
-                return media_link, media_type
+            # ਡਿਕਸ਼ਨਰੀ ਫਾਰਮੈਟ ਚੈੱਕ ਕਰਨਾ
+            if isinstance(data, dict):
+                # ਸਿੱਧੇ ਲਿੰਕ
+                direct_url = data.get("download_url") or data.get("video_url") or data.get("url")
+                if direct_url:
+                    return direct_url, "video"
 
-            # Photo fallback parsing
-            photo_url = data.get("image_url") or data.get("data", {}).get("image_url")
-            if photo_url:
-                return photo_url, "photo"
+                # data ਆਬਜੈਕਟ ਦੇ ਅੰਦਰ
+                sub_data = data.get("data")
+                if isinstance(sub_data, dict):
+                    url = sub_data.get("download_url") or sub_data.get("video_url") or sub_data.get("url")
+                    if url:
+                        return url, "video"
+                elif isinstance(sub_data, list) and len(sub_data) > 0:
+                    first = sub_data[0]
+                    url = first.get("download_url") or first.get("url") or first.get("video_url")
+                    if url:
+                        return url, "video"
+
+                # ਫੋਟੋ ਫਾਲਬੈਕ
+                photo_url = data.get("image_url") or (data.get("data", {}).get("image_url") if isinstance(data.get("data"), dict) else None)
+                if photo_url:
+                    return photo_url, "photo"
 
     except Exception:
         pass
@@ -83,7 +100,7 @@ def handle_download(message):
 
         if not media_url:
             bot.edit_message_text(
-                "❌ **Download Failed.**\nThe reel might be private or temporarily restricted.",
+                "❌ **Download Failed.**\nThe reel might be private or restricted by Instagram.",
                 chat_id=message.chat.id,
                 message_id=status.message_id,
                 parse_mode="Markdown"
