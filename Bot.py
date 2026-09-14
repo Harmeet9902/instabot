@@ -12,41 +12,48 @@ app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "R-Download Moody Engine Live!"
+    return "Bot Server is Online 24/7"
 
-def fetch_moody_media(url: str):
+def extract_media_stream(url: str):
+    match = re.search(r'/(?:reel|p|tv)/([A-Za-z0-9_-]+)', url)
+    if not match:
+        return None, None
+    shortcode = match.group(1)
+
     headers = {
-        "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148",
-        "Accept": "*/*",
-        "Referer": "https://www.moody0100.com/"
+        "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15",
+        "Accept": "*/*"
     }
 
-    # Moody0100 R-Download Core API
+    # Core Method 1: DDInstagram / EZ Fast CDN (Bypasses all IP restrictions)
     try:
-        api_endpoint = "https://www.moody0100.com/api/v1/download"
-        res = requests.post(api_endpoint, json={"url": url}, headers=headers, timeout=15)
+        api_url = f"https://api.ddinstagram.com/videos/{shortcode}"
+        res = requests.get(api_url, headers=headers, timeout=12)
         if res.status_code == 200:
             data = res.json()
-            media_url = data.get("url") or data.get("download_url") or data.get("media")
-            if media_url:
-                return media_url, "video" if "mp4" in media_url.lower() else "photo"
+            if "direct_url" in data:
+                return data["direct_url"], "video"
     except Exception:
         pass
 
-    # Moody0100 Direct Endpoint Fallback
+    # Core Method 2: Native Instagram App Proxy
     try:
-        direct_url = f"https://www.moody0100.com/file/fetch?url={url}"
-        res = requests.get(direct_url, headers=headers, timeout=15)
+        api_url = f"https://www.instagram.com/reel/{shortcode}/?__a=1&__d=dis"
+        res = requests.get(api_url, headers=headers, timeout=10)
         if res.status_code == 200:
-            data = res.json()
-            if isinstance(data, dict) and data.get("url"):
-                return data["url"], "video"
+            items = res.json().get('items', [])
+            if items:
+                item = items[0]
+                if 'video_versions' in item:
+                    return item['video_versions'][0]['url'], "video"
+                elif 'image_versions2' in item:
+                    return item['image_versions2']['candidates'][0]['url'], "photo"
     except Exception:
         pass
 
-    # Ddownr / Snap High-Speed Direct Engine
+    # Core Method 3: High-Speed Web Engine
     try:
-        res = requests.get(f"https://api.vkrdownloader.com/server?vkr={url}", timeout=15).json()
+        res = requests.get(f"https://api.vkrdownloader.com/server?vkr=https://www.instagram.com/reel/{shortcode}/", timeout=12).json()
         d_url = res.get("data", {}).get("download_url") or res.get("download_url")
         if d_url:
             return d_url, "video"
@@ -57,42 +64,41 @@ def fetch_moody_media(url: str):
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
-    bot.reply_to(
-        message,
-        "👋 **Welcome!**\n\n"
-        "Instagram ਤੋਂ ਕੋਈ ਵੀ ਲਿੰਕ (Reel ਜਾਂ Photo) ਸਿੱਧਾ ਇੱਥੇ ਭੇਜੋ।\n"
-        "⚡ **Original Maximum Quality** (Powered by R⤓Download Engine).",
-        parse_mode="Markdown"
+    welcome_msg = (
+        "👋 **Welcome to Instagram Downloader!**\n\n"
+        "📥 Send any **Instagram Reel, Video, or Photo** link.\n\n"
+        "⚡ I will instantly fetch it in **Original Maximum Quality** (No Watermarks, No Ads)."
     )
+    bot.reply_to(message, welcome_msg, parse_mode="Markdown")
 
 @bot.message_handler(func=lambda msg: True)
 def handle_download(message):
-    raw_url = message.text.strip() if message.text else ""
-
-    if "instagram.com" not in raw_url:
-        bot.reply_to(message, "⚠️ ਕਿਰਪਾ ਕਰਕੇ ਇੰਸਟਾਗ੍ਰਾਮ ਦਾ ਲਿੰਕ ਭੇਜੋ।")
+    text = message.text or ""
+    if "instagram.com" not in text:
+        bot.reply_to(message, "⚠️ **Invalid Link!** Please send a valid Instagram link.")
         return
 
-    status = bot.reply_to(message, "⚡ **Processing with R-Download Engine...**\nOriginal 4K/HD ਕੁਆਲਿਟੀ ਫੈਚ ਹੋ ਰਹੀ ਹੈ...", parse_mode="Markdown")
+    status = bot.reply_to(message, "⚡ **Processing your request...**\nConnecting to high-speed media servers...", parse_mode="Markdown")
     bot.send_chat_action(message.chat.id, 'upload_video')
 
     try:
-        download_url, media_type = fetch_moody_media(raw_url)
+        media_url, media_type = extract_media_stream(text.strip())
 
-        if not download_url:
+        if not media_url:
             bot.edit_message_text(
-                "❌ ਵੀਡੀਓ ਲੱਭੀ ਨਹੀਂ ਜਾਂ ਲਿੰਕ ਪ੍ਰਾਈਵੇਟ ਹੈ।",
+                "❌ **Download Failed.**\nThe reel might be private or restricted by Instagram.",
                 chat_id=message.chat.id,
-                message_id=status.message_id
+                message_id=status.message_id,
+                parse_mode="Markdown"
             )
             return
 
-        bot.edit_message_text("📤 **ਫਾਈਲ ਅੱਪਲੋਡ ਹੋ ਰਹੀ ਹੈ...**", chat_id=message.chat.id, message_id=status.message_id)
+        bot.edit_message_text("📤 **Uploading file to Telegram...**", chat_id=message.chat.id, message_id=status.message_id, parse_mode="Markdown")
 
         temp_filename = f"media_{message.message_id}.mp4" if media_type == "video" else f"media_{message.message_id}.jpg"
 
         req_headers = {"User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)"}
-        with requests.get(download_url, headers=req_headers, stream=True, timeout=45) as r:
+        with requests.get(media_url, headers=req_headers, stream=True, timeout=45) as r:
             r.raise_for_status()
             with open(temp_filename, 'wb') as f:
                 for chunk in r.iter_content(chunk_size=1024*1024):
@@ -105,14 +111,14 @@ def handle_download(message):
                     message.chat.id,
                     media_file,
                     supports_streaming=True,
-                    caption="🎬 **Here is your video in Original Full Quality!**",
+                    caption="🎬 **Original Full HD/4K Video**",
                     parse_mode="Markdown"
                 )
             else:
                 bot.send_photo(
                     message.chat.id,
                     media_file,
-                    caption="🖼️ **Original Full Quality Photo**",
+                    caption="🖼️ **Original Quality Photo**",
                     parse_mode="Markdown"
                 )
 
@@ -122,7 +128,7 @@ def handle_download(message):
         bot.delete_message(chat_id=message.chat.id, message_id=status.message_id)
 
     except Exception:
-        bot.edit_message_text("❌ ਕੋਈ ਸਮੱਸਿਆ ਆਈ ਹੈ, ਕਿਰਪਾ ਕਰਕੇ ਦੁਬਾਰਾ ਕੋਸ਼ਿਸ਼ ਕਰੋ।", chat_id=message.chat.id, message_id=status.message_id)
+        bot.edit_message_text("❌ **An error occurred during download.** Please try again.", chat_id=message.chat.id, message_id=status.message_id)
 
 def run_bot():
     bot.infinity_polling(timeout=10, long_polling_timeout=5)
