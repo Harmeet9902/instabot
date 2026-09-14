@@ -8,70 +8,61 @@ import telebot
 BOT_TOKEN = "8872648718:AAGbgUSgZ07twAle3lzP71krsz9iEfwNn2w"
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# Render 24/7 ਐਕਟਿਵ ਰੱਖਣ ਲਈ
 app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "Instagram Downloader Engine Live!"
+    return "Ultra-Fast Instagram Engine Active!"
 
-def get_shortcode(url: str) -> str:
-    match = re.search(r'/(?:reel|p|tv)/([A-Za-z0-9_-]+)', url)
-    return match.group(1) if match else None
+def clean_url(url: str) -> str:
+    match = re.search(r'(https?://(?:www\.)?instagram\.com/(?:reel|p|tv)/[A-Za-z0-9_-]+)', url)
+    return match.group(1) if match else url.split('?')[0]
 
-def fetch_instagram_media(url: str):
-    shortcode = get_shortcode(url)
-    if not shortcode:
-        return None
-
-    # Fast High-Quality API Endpoints
-    api_urls = [
-        f"https://api.vkrdownloader.com/server?vkr={url}",
-        f"https://insta-downloader.deno.dev/api?url={url}"
+def extract_media(url: str):
+    target_url = clean_url(url)
+    
+    # Engine 1: Cobalt Core API (ਬਿਨਾਂ ਵਾਟਰਮਾਰਕ, ਫੁੱਲ ਕੁਆਲਿਟੀ)
+    cobalt_servers = [
+        "https://api.cobalt.tools",
+        "https://cobalt.api.scpt.tw",
+        "https://api.server.cobalt.tools"
     ]
+    for srv in cobalt_servers:
+        try:
+            r = requests.post(
+                f"{srv}/",
+                headers={
+                    "Accept": "application/json",
+                    "Content-Type": "application/json"
+                },
+                json={"url": target_url, "videoQuality": "max"},
+                timeout=8
+            )
+            if r.status_code == 200:
+                res_data = r.json()
+                if "url" in res_data:
+                    return res_data["url"]
+                if res_data.get("status") == "picker" and "picker" in res_data:
+                    return res_data["picker"][0]["url"]
+        except Exception:
+            continue
 
-    headers = {
-        "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
-    }
-
-    # Method 1: Deno Fast Engine
+    # Engine 2: Fast High-Speed Web Scraper
     try:
-        res = requests.get(f"https://insta-downloader.deno.dev/api?url=https://www.instagram.com/reel/{shortcode}/", headers=headers, timeout=12)
-        if res.status_code == 200:
-            data = res.json()
-            if "url" in data:
-                return [{"url": data["url"], "type": "video"}]
-            if isinstance(data, list) and len(data) > 0 and "url" in data[0]:
-                return [{"url": item["url"], "type": "video" if "mp4" in item.get("url", "") else "photo"} for item in data]
+        api_res = requests.get(f"https://api.vkrdownloader.com/server?vkr={target_url}", timeout=10).json()
+        download_url = api_res.get("data", {}).get("download_url") or api_res.get("download_url")
+        if download_url:
+            return download_url
     except Exception:
         pass
 
-    # Method 2: Fallback Engine
+    # Engine 3: Alternative Deno CDN Bridge
     try:
-        res = requests.get(f"https://api.vkrdownloader.com/server?vkr=https://www.instagram.com/reel/{shortcode}/", headers=headers, timeout=12)
-        if res.status_code == 200:
-            data = res.json()
-            download_url = data.get("data", {}).get("download_url") or data.get("download_url")
-            if download_url:
-                return [{"url": download_url, "type": "video"}]
-    except Exception:
-        pass
-
-    # Method 3: Instagram Direct GraphQL Fallback
-    try:
-        graphql_url = f"https://www.instagram.com/p/{shortcode}/?__a=1&__d=dis"
-        res = requests.get(graphql_url, headers=headers, timeout=10)
-        if res.status_code == 200:
-            items = res.json().get("items", [])
-            if items:
-                item = items[0]
-                if "video_versions" in item:
-                    # ਸਭ ਤੋਂ ਉੱਚੀ ਕੁਆਲਿਟੀ ਵਾਲਾ ਵੀਡੀਓ CDN ਲਿੰਕ
-                    best_video = item["video_versions"][0]["url"]
-                    return [{"url": best_video, "type": "video"}]
-                elif "image_versions2" in item:
-                    best_img = item["image_versions2"]["candidates"][0]["url"]
-                    return [{"url": best_img, "type": "photo"}]
+        res = requests.get(f"https://insta-downloader.deno.dev/api?url={target_url}", timeout=10).json()
+        if isinstance(res, dict) and "url" in res:
+            return res["url"]
+        if isinstance(res, list) and len(res) > 0 and "url" in res[0]:
+            return res[0]["url"]
     except Exception:
         pass
 
@@ -79,77 +70,62 @@ def fetch_instagram_media(url: str):
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
-    welcome_text = (
-        "👋 **Welcome to Instagram 4K / HD Downloader!**\n\n"
-        "📥 Send me any **Instagram Reel, Video, or Photo** link.\n\n"
-        "⚡ I will fetch it in **Original Maximum Quality** without any watermark!"
+    bot.reply_to(
+        message,
+        "👋 **Welcome!**\n\nSend any **Instagram Reel or Post** link here.\n"
+        "⚡ Original Full Quality (No Watermark, No Ads).",
+        parse_mode="Markdown"
     )
-    bot.reply_to(message, welcome_text, parse_mode="Markdown")
 
 @bot.message_handler(func=lambda msg: True)
-def handle_all_messages(message):
-    raw_text = message.text or ""
-    
-    if "instagram.com" not in raw_text:
-        bot.reply_to(message, "⚠️ **Please send a valid Instagram link!**", parse_mode="Markdown")
+def handle_download(message):
+    text = message.text or ""
+    if "instagram.com" not in text:
+        bot.reply_to(message, "⚠️ Please send a valid Instagram Reel link.")
         return
 
-    status_msg = bot.reply_to(message, "⚡ **Processing in Full Quality...**\nConnecting to high-speed media server...", parse_mode="Markdown")
+    status = bot.reply_to(message, "⚡ **Processing Full Quality Media...**", parse_mode="Markdown")
     bot.send_chat_action(message.chat.id, 'upload_video')
 
     try:
-        media_list = fetch_instagram_media(raw_text.strip())
+        media_url = extract_media(text.strip())
 
-        if not media_list:
+        if not media_url:
             bot.edit_message_text(
-                "❌ **Failed to fetch media.**\n"
-                "1. Check if the account is Private.\n"
-                "2. The reel might be restricted or deleted.",
+                "❌ **Download Failed.** The Reel might be restricted or invalid.",
                 chat_id=message.chat.id,
-                message_id=status_msg.message_id,
+                message_id=status.message_id,
                 parse_mode="Markdown"
             )
             return
 
-        bot.edit_message_text("📤 **Downloading & Sending file...**", chat_id=message.chat.id, message_id=status_msg.message_id, parse_mode="Markdown")
+        bot.edit_message_text("📤 **Uploading Video...**", chat_id=message.chat.id, message_id=status.message_id, parse_mode="Markdown")
 
-        for item in media_list:
-            media_url = item["url"]
-            media_type = item["type"]
+        # ਵੀਡੀਓ ਫਾਈਲ ਡਾਊਨਲੋਡ ਕਰਕੇ ਭੇਜਣਾ
+        temp_file = f"video_{message.message_id}.mp4"
+        with requests.get(media_url, stream=True, timeout=30) as r:
+            r.raise_for_status()
+            with open(temp_file, 'wb') as f:
+                for chunk in r.iter_content(chunk_size=1024*1024):
+                    if chunk:
+                        f.write(chunk)
 
-            # ਫੁੱਲ ਕੁਆਲਿਟੀ ਫਾਈਲ ਡਾਊਨਲੋਡ ਕਰਕੇ ਭੇਜਣਾ
-            resp = requests.get(media_url, stream=True, timeout=30)
-            if resp.status_code == 200:
-                temp_filename = f"media_{message.message_id}.mp4" if media_type == "video" else f"media_{message.message_id}.jpg"
-                with open(temp_filename, 'wb') as f:
-                    for chunk in resp.iter_content(chunk_size=1024*1024):
-                        if chunk:
-                            f.write(chunk)
+        with open(temp_file, 'rb') as video:
+            bot.send_video(
+                message.chat.id,
+                video,
+                supports_streaming=True,
+                caption="🎬 **Here is your video in Original Full HD/4K!**",
+                parse_mode="Markdown"
+            )
 
-                with open(temp_filename, 'rb') as f:
-                    if media_type == "video":
-                        bot.send_video(
-                            message.chat.id,
-                            f,
-                            supports_streaming=True,
-                            caption="🎬 **Original Quality Video (No Watermark)**",
-                            parse_mode="Markdown"
-                        )
-                    else:
-                        bot.send_photo(
-                            message.chat.id,
-                            f,
-                            caption="🖼️ **Original Quality Photo**",
-                            parse_mode="Markdown"
-                        )
+        if os.path.exists(temp_file):
+            os.remove(temp_file)
 
-                if os.path.exists(temp_filename):
-                    os.remove(temp_filename)
-
-        bot.delete_message(chat_id=message.chat.id, message_id=status_msg.message_id)
+        bot.delete_message(chat_id=message.chat.id, message_id=status.message_id)
 
     except Exception as e:
-        bot.edit_message_text("❌ **An unexpected error occurred.** Please try again.", chat_id=message.chat.id, message_id=status_msg.message_id)
+        bot.edit_message_text("❌ Error while sending video. Please try again.", chat_id=message.chat.id, message_id=status.message_id)
 
 def run_bot():
     bot.infinity_polling(timeout=10, long_polling_timeout=5)
