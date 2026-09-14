@@ -5,9 +5,11 @@ from flask import Flask
 import telebot
 import yt_dlp
 
+# ਤੁਹਾਡਾ ਬੋਟ ਟੋਕਨ
 BOT_TOKEN = "8872648718:AAGbgUSgZ07twAle3lzP71krsz9iEfwNn2w"
 bot = telebot.TeleBot(BOT_TOKEN)
 
+# Render ਸਰਵਰ ਨੂੰ 24/7 ਐਕਟਿਵ ਰੱਖਣ ਲਈ ਡੰਮੀ ਵੈੱਬ ਸਰਵਰ
 app = Flask(__name__)
 
 @app.route('/')
@@ -31,7 +33,7 @@ def download_instagram(url, output_folder):
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
-    bot.reply_to(message, "ਸਤਿ ਸ੍ਰੀ ਅਕਾਲ ਜੀ! 📥\nਕਿਸੇ ਵੀ Instagram Reel ਜਾਂ Photo ਦਾ ਲਿੰਕ ਭੇਜੋ, ਮੈਂ ਓਰੀਜਨਲ ਕੁਆਲਿਟੀ ਵਿੱਚ ਡਾਊਨਲੋਡ ਕਰਕੇ ਭੇਜਾਂਗਾ।")
+    bot.reply_to(message, "ਸਤਿ ਸ੍ਰੀ ਅਕਾਲ ਜੀ! 📥\nਕਿਸੇ ਵੀ Instagram Reel, Video ਜਾਂ Photo ਦਾ ਲਿੰਕ ਭੇਜੋ, ਮੈਂ ਓਰੀਜਨਲ ਕੁਆਲਿਟੀ ਵਿੱਚ ਡਾਊਨਲੋਡ ਕਰਕੇ ਭੇਜਾਂਗਾ।")
 
 @bot.message_handler(func=lambda msg: True)
 def handle_all_messages(message):
