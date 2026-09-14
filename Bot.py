@@ -1,8 +1,6 @@
 import os
-import re
-import json
-import threading
 import requests
+import threading
 from flask import Flask
 import telebot
 
@@ -13,145 +11,126 @@ app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "R-Download Core Engine Live!"
+    return "Bot Server Active 24/7"
 
-def shortcode_to_media_id(shortcode: str) -> int:
-    alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_'
-    media_id = 0
-    for char in shortcode:
-        media_id = (media_id * 64) + alphabet.index(char)
-    return media_id
-
-def get_shortcode(url: str) -> str:
-    match = re.search(r'/(?:reel|p|tv)/([A-Za-z0-9_-]+)', url)
-    return match.group(1) if match else None
-
-def r_download_engine(url: str):
-    shortcode = get_shortcode(url)
-    if not shortcode:
-        return None
-
-    media_id = shortcode_to_media_id(shortcode)
-
-    # 1. Instagram iOS Native App Headers (Like R-Download)
+def fetch_direct_media(raw_url: str):
     headers = {
-        'User-Agent': 'Instagram 278.0.0.19.115 (iPhone14,2; iOS 16_5; en_US; en-US; scale=3.00; 1170x2532; 458887549)',
-        'Accept': '*/*',
-        'Accept-Language': 'en-US,en;q=0.9',
-        'X-IG-App-ID': '936619743392459',
-        'X-ASBD-ID': '198387',
-        'X-IG-WWW-Claim': '0',
-        'Origin': 'https://www.instagram.com',
-        'Referer': f'https://www.instagram.com/reel/{shortcode}/'
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Accept": "application/json, text/plain, */*",
     }
 
-    # Engine Method 1: Direct Instagram Mobile Info API
+    # Engine 1: ਸਿੱਧਾ ਪੂਰਾ ਲਿੰਕ ਭੇਜਣ ਵਾਲਾ ਓਪਨ ਸਰਵਰ
     try:
-        api_url = f"https://i.instagram.com/api/v1/media/{media_id}/info/"
-        res = requests.get(api_url, headers=headers, timeout=10)
+        api_url = f"https://api.siputzx.my.id/api/d/ig?url={raw_url}"
+        res = requests.get(api_url, headers=headers, timeout=12)
         if res.status_code == 200:
             data = res.json()
-            items = data.get('items', [])
-            if items:
-                item = items[0]
-                if 'video_versions' in item:
-                    # ਓਰੀਜਨਲ ਮੈਕਸ ਕੁਆਲਿਟੀ ਵੀਡੀਓ CDN
-                    return item['video_versions'][0]['url']
-                elif 'image_versions2' in item:
-                    return item['image_versions2']['candidates'][0]['url']
+            if data.get("status") and data.get("data"):
+                media_list = data["data"]
+                if isinstance(media_list, list) and len(media_list) > 0:
+                    first_item = media_list[0]
+                    download_url = first_item.get("url")
+                    m_type = "video" if "mp4" in download_url.lower() or "video" in str(first_item) else "photo"
+                    return download_url, m_type
     except Exception:
         pass
 
-    # Engine Method 2: FastDL Backend Scraper
+    # Engine 2: ਫਾਲਬੈਕ ਵੈੱਬ ਸਰਵਰ
     try:
-        post_url = f"https://www.instagram.com/reel/{shortcode}/"
-        res = requests.post(
-            "https://fastdl.app/c/",
-            data={"url": post_url},
-            headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"},
-            timeout=10
-        )
-        match = re.search(r'href="(https://[^"]+dl=1[^"]*)"', res.text)
-        if match:
-            return match.group(1)
+        api_url = f"https://widipe.com/download/igdl?url={raw_url}"
+        res = requests.get(api_url, headers=headers, timeout=12)
+        if res.status_code == 200:
+            data = res.json()
+            if data.get("status") and data.get("result"):
+                results = data["result"]
+                if isinstance(results, list) and len(results) > 0:
+                    d_url = results[0].get("url")
+                    return d_url, "video"
     except Exception:
         pass
 
-    # Engine Method 3: SaveTube / InDown Scraper Fallback
+    # Engine 3: ਯੂਨੀਵਰਸਲ ਡਾਊਨਲੋਡਰ ਗੇਟਵੇ
     try:
-        res = requests.get(f"https://api.vkrdownloader.com/server?vkr=https://www.instagram.com/reel/{shortcode}/", timeout=10)
-        data = res.json()
-        download_url = data.get("data", {}).get("download_url") or data.get("download_url")
-        if download_url:
-            return download_url
+        api_url = f"https://api.vkrdownloader.com/server?vkr={raw_url}"
+        res = requests.get(api_url, headers=headers, timeout=12)
+        if res.status_code == 200:
+            data = res.json()
+            d_url = data.get("data", {}).get("download_url") or data.get("download_url")
+            if d_url:
+                return d_url, "video"
     except Exception:
         pass
 
-    return None
+    return None, None
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     bot.reply_to(
         message,
         "👋 **Welcome!**\n\n"
-        "📥 Send any **Instagram Reel or Post** link here.\n\n"
-        "⚡ **Original Maximum Quality** (No Watermark, No Ads, R-Engine).",
+        "Instagram ਤੋਂ ਕੋਈ ਵੀ ਲਿੰਕ ਸਿੱਧਾ ਕਾਪੀ ਕਰਕੇ ਇੱਥੇ ਪੇਸਟ ਕਰੋ।\n"
+        "⚡ ਓਰੀਜਨਲ ਫੁੱਲ ਕੁਆਲਿਟੀ ਵਿੱਚ ਮੀਡੀਆ ਤੁਰੰਤ ਡਾਊਨਲੋਡ ਹੋ ਜਾਵੇਗਾ।",
         parse_mode="Markdown"
     )
 
 @bot.message_handler(func=lambda msg: True)
 def handle_download(message):
-    text = message.text or ""
-    if "instagram.com" not in text:
-        bot.reply_to(message, "⚠️ **Invalid Link!** Please send a valid Instagram Reel/Post link.")
+    raw_url = message.text.strip() if message.text else ""
+
+    if "instagram.com" not in raw_url:
+        bot.reply_to(message, "⚠️ ਕਿਰਪਾ ਕਰਕੇ ਇੰਸਟਾਗ੍ਰਾਮ ਦਾ ਲਿੰਕ ਭੇਜੋ।")
         return
 
-    status = bot.reply_to(message, "⚡ **Processing in Original Full HD/4K...**\nConnecting to Instagram CDN...", parse_mode="Markdown")
+    status = bot.reply_to(message, "⚡ **Processing... ਮੀਡੀਆ ਫੈਚ ਹੋ ਰਿਹਾ ਹੈ**", parse_mode="Markdown")
     bot.send_chat_action(message.chat.id, 'upload_video')
 
     try:
-        media_url = r_download_engine(text.strip())
+        download_url, media_type = fetch_direct_media(raw_url)
 
-        if not media_url:
+        if not download_url:
             bot.edit_message_text(
-                "❌ **Download Failed.**\nReel might be private or from an age-restricted account.",
+                "❌ ਵੀਡੀਓ ਲੱਭੀ ਨਹੀਂ। ਲਿੰਕ ਚੈੱਕ ਕਰੋ ਜੀ।",
                 chat_id=message.chat.id,
-                message_id=status.message_id,
-                parse_mode="Markdown"
+                message_id=status.message_id
             )
             return
 
-        bot.edit_message_text("📤 **Downloading & Sending Video...**", chat_id=message.chat.id, message_id=status.message_id, parse_mode="Markdown")
+        bot.edit_message_text("📤 **ਫਾਈਲ ਭੇਜੀ ਜਾ ਰਹੀ ਹੈ...**", chat_id=message.chat.id, message_id=status.message_id)
 
-        temp_file = f"media_{message.message_id}.mp4"
+        temp_filename = f"media_{message.message_id}.mp4" if media_type == "video" else f"media_{message.message_id}.jpg"
         
-        # ਸਿੱਧਾ CDN ਤੋਂ ਵੀਡੀਓ ਡਾਊਨਲੋਡ ਕਰਨਾ
-        stream_headers = {
-            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X)'
-        }
-        with requests.get(media_url, headers=stream_headers, stream=True, timeout=40) as r:
+        # ਵੀਡੀਓ ਸਟ੍ਰੀਮ ਡਾਊਨਲੋਡ
+        with requests.get(download_url, stream=True, timeout=40) as r:
             r.raise_for_status()
-            with open(temp_file, 'wb') as f:
+            with open(temp_filename, 'wb') as f:
                 for chunk in r.iter_content(chunk_size=1024*1024):
                     if chunk:
                         f.write(chunk)
 
-        with open(temp_file, 'rb') as video:
-            bot.send_video(
-                message.chat.id,
-                video,
-                supports_streaming=True,
-                caption="🎬 **Here is your video in Original Quality!**",
-                parse_mode="Markdown"
-            )
+        with open(temp_filename, 'rb') as media_file:
+            if media_type == "video":
+                bot.send_video(
+                    message.chat.id,
+                    media_file,
+                    supports_streaming=True,
+                    caption="🎬 **Original Full Quality (No Watermark)**",
+                    parse_mode="Markdown"
+                )
+            else:
+                bot.send_photo(
+                    message.chat.id,
+                    media_file,
+                    caption="🖼️ **Original Full Quality Photo**",
+                    parse_mode="Markdown"
+                )
 
-        if os.path.exists(temp_file):
-            os.remove(temp_file)
+        if os.path.exists(temp_filename):
+            os.remove(temp_filename)
 
         bot.delete_message(chat_id=message.chat.id, message_id=status.message_id)
 
-    except Exception as e:
-        bot.edit_message_text("❌ An error occurred during download. Please try again.", chat_id=message.chat.id, message_id=status.message_id)
+    except Exception:
+        bot.edit_message_text("❌ ਕੋਈ ਦਿੱਕਤ ਆਈ ਹੈ, ਦੁਬਾਰਾ ਕੋਸ਼ਿਸ਼ ਕਰੋ।", chat_id=message.chat.id, message_id=status.message_id)
 
 def run_bot():
     bot.infinity_polling(timeout=10, long_polling_timeout=5)
